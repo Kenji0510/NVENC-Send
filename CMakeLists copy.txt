@@ -1,0 +1,39 @@
+cmake_minimum_required(VERSION 3.10)
+project(NVENC_Example)
+
+# CUDAモジュールを自動で探す
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/home/kenji/Video_Codec_SDK_12.2.72/Samples/External/cmake/Modules")
+find_package(CUDA REQUIRED)
+
+# CUDAのコンパイラ設定
+set(CMAKE_CUDA_STANDARD 11)
+
+# NVIDIA Video Codec SDKのパスを指定
+set(NV_CODEC_SDK_PATH "/home/kenji/Video_Codec_SDK_12.2.72")
+
+# インクルードディレクトリを設定
+include_directories(
+    ${CUDA_INCLUDE_DIRS}
+    ${NV_CODEC_SDK_PATH}/Interface  # NVENCのヘッダファイルディレクトリ
+    ${NV_CODEC_SDK_PATH}/Samples/NvCodec  # NvEncoderCuda.hのあるディレクトリ
+    ${NV_CODEC_SDK_PATH}/Samples/Utils
+)
+
+# ソースコードを指定
+set(SOURCES src/main.cpp)
+
+# CUDAとリンクするための設定
+cuda_add_executable(${PROJECT_NAME} ${SOURCES})
+
+# NVENCライブラリをリンク
+target_link_libraries(${PROJECT_NAME}
+    ${CUDA_LIBRARIES}                 # CUDAのライブラリ
+    #${NV_CODEC_SDK_PATH}/Lib/linux/stubs/libnvidia-encode.so  # NVENCライブラリ
+    /usr/lib/x86_64-linux-gnu/libnvidia-encode.so
+)
+
+# C++11以上を使用
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED YES
+)

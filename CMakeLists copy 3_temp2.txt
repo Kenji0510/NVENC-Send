@@ -1,0 +1,136 @@
+# Copyright 2020-2024 NVIDIA Corporation.  All rights reserved.
+#
+# Please refer to the NVIDIA end user license agreement (EULA) associated
+# with this source code for terms and conditions that govern your use of
+# this software. Any use, reproduction, disclosure, or distribution of
+# this software and related documentation outside the terms of the EULA
+# is strictly prohibited.
+
+cmake_minimum_required(VERSION 3.7)
+
+project(NvCodec)
+
+# Set C++11 for all projects and disable non-standard extensions
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_INSTALL_PREFIX .)
+
+# Check for WSL (Windows Subsystem for Linux)
+if (EXISTS /usr/lib/wsl/lib)
+    set(WSL_FLAG TRUE)
+endif()
+
+# NVIDIA Video Codec SDKのパスを指定
+set(NV_CODEC_SDK_PATH "/home/kenji/Video_Codec_SDK_12.2.72")
+
+# インクルードディレクトリを設定
+include_directories(
+    ${CUDA_INCLUDE_DIRS}
+    ${NV_CODEC_SDK_PATH}/Interface  # NVENCのヘッダファイルディレクトリ
+    ${NV_CODEC_SDK_PATH}/Samples/NvCodec  # NvEncoderCuda.hのあるディレクトリ
+    ${NV_CODEC_SDK_PATH}/Samples/Utils
+)
+
+#set(NVCODEC_PUBLIC_INTERFACE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../Interface)
+#set(NVCODEC_UTILS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Utils)
+#set(NV_CODEC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/NvCodec)
+#set(NV_ENC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/NvCodec/NvEncoder)
+#set(NV_DEC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/NvCodec/NvDecoder)
+#set(NV_APPENC_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/AppEncode/Common)
+#set(NV_APPDEC_COMMON_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/AppDecode/Common)
+
+set(NV_ENC_DIR /home/kenji/Video_Codec_SDK_12.2.72/Samples/NvCodec/NvEncoder)
+set(NVCODEC_PUBLIC_INTERFACE_DIR /home/kenji/Video_Codec_SDK_12.2.72/Interface)
+set(NVCODEC_UTILS_DIR /home/kenji/Video_Codec_SDK_12.2.72/Samples/Utils)
+
+set(NV_DEC_DIR /home/kenji/Video_Codec_SDK_12.2.72/Samples/NvCodec/NvDecoder)
+set(NV_APPDEC_COMMON_DIR /home/kenji/Video_Codec_SDK_12.2.72/Samples/AppDecode/Common)
+
+find_package(CUDA)
+message("CUDA_CUDA_LIBRARY: ${CUDA_CUDA_LIBRARY}")
+message("CUDA_TOOLKIT_ROOT_DIR: ${CUDA_TOOLKIT_ROOT_DIR}")
+
+set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
+
+# Linux-specific library detection (for FFmpeg and NVENC)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(PC_AVCODEC REQUIRED IMPORTED_TARGET libavcodec)
+    pkg_check_modules(PC_AVFORMAT REQUIRED IMPORTED_TARGET libavformat)
+    pkg_check_modules(PC_AVUTIL REQUIRED IMPORTED_TARGET libavutil)
+    pkg_check_modules(PC_SWRESAMPLE REQUIRED IMPORTED_TARGET libswresample)
+
+    set(NV_FFMPEG_HDRS ${PC_AVCODEC_INCLUDE_DIRS})
+    find_library(AVCODEC_LIBRARY NAMES avcodec
+            HINTS
+            ${PC_AVCODEC_LIBDIR}
+            ${PC_AVCODEC_LIBRARY_DIRS}
+            )
+    find_library(AVFORMAT_LIBRARY NAMES avformat
+            HINTS
+            ${PC_AVFORMAT_LIBDIR}
+            ${PC_AVFORMAT_LIBRARY_DIRS}
+            )
+    find_library(AVUTIL_LIBRARY NAMES avutil
+            HINTS
+            ${PC_AVUTIL_LIBDIR}
+            ${PC_AVUTIL_LIBRARY_DIRS}
+            )
+    find_library(SWRESAMPLE_LIBRARY NAMES swresample
+            HINTS
+            ${PC_SWRESAMPLE_LIBDIR}
+            ${PC_SWRESAMPLE_LIBRARY_DIRS}
+            )
+    set(AVCODEC_LIB ${AVCODEC_LIBRARY})
+    set(AVFORMAT_LIB ${AVFORMAT_LIBRARY})
+    set(AVUTIL_LIB ${AVUTIL_LIBRARY})
+    set(SWRESAMPLE_LIB ${SWRESAMPLE_LIBRARY})
+endif()
+
+#add_subdirectory(AppEncode/AppEncCuda)
+#add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+#add_subdirectory(AppEncode/AppEncLowLatency)
+#add_subdirectory(AppEncode/AppEncME)
+#add_subdirectory(AppEncode/AppEncPerf)
+#add_subdirectory(AppEncode/AppEncMultiInstance)
+#add_subdirectory(AppEncode/AppEncQual)
+
+# FFmpeg and transcode apps (Linux only)
+#add_subdirectory(AppEncode/AppEncDec)
+#add_subdirectory(AppTranscode/AppTrans)
+#add_subdirectory(AppTranscode/AppTransOneToN)
+#add_subdirectory(AppTranscode/AppTransPerf)
+
+# Decoder apps (Linux only)
+#add_subdirectory(AppDecode/AppDec)
+#add_subdirectory(AppDecode/AppDecImageProvider)
+#add_subdirectory(AppDecode/AppDecLowLatency)
+#add_subdirectory(AppDecode/AppDecMem)
+#add_subdirectory(AppDecode/AppDecMultiFiles)
+#add_subdirectory(AppDecode/AppDecMultiInput)
+#add_subdirectory(AppDecode/AppDecPerf)
+
+# Handle FFmpeg libraries for Linux
+if(DEFINED FFMPEG_DIR)
+    file(GLOB externalLibList 
+        ${FFMPEG_DLL_DIR}*.dll 
+        ${FFMPEG_LIB_DIR}*.lib
+    )    
+    add_custom_target(copyFFMPEGFiles ALL)
+    add_custom_command(TARGET copyFFMPEGFiles COMMAND ${CMAKE_COMMAND} -E make_directory  ${NVCODEC_SAMPLES_INSTALL_DIR}/$<CONFIG>/)
+
+    foreach(externalLib ${externalLibList})
+        add_custom_command(TARGET copyFFMPEGFiles COMMAND ${CMAKE_COMMAND} -E copy ${externalLib} ${NVCODEC_SAMPLES_INSTALL_DIR}/$<CONFIG>/)
+    endforeach()
+endif()
+
+# Compile AppEncCuda.cpp into a separate executable
+add_executable(AppEncCuda src/AppEncCuda.cpp)
+target_link_libraries(AppEncCuda ${FFMPEG_LIBS} ${CUDA_CUDA_LIBRARY} ${CMAKE_DL_LIBS} ${NVENCODEAPI_LIB} ${CUVID_LIB} /usr/lib/x86_64-linux-gnu/libnvidia-encode.so)
+
+# Compile AppDec.cpp into a separate executable
+add_executable(AppDec src/AppDec.cpp)
+target_link_libraries(AppDec ${FFMPEG_LIBS})
